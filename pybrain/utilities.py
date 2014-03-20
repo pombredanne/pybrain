@@ -456,22 +456,27 @@ def flood(stepFunction, fullSet, initSet, relevant=None):
 
     :key relevant: (optional) list of relevant elements: stop once all relevant elements are found.
     """
-    full = set(fullSet)
-    flooded = full.intersection(set(initSet))
-
-    if relevant is None:
-        relevant = full.copy()
+    if fullSet is None:
+        flooded = set(initSet)
     else:
+        full = set(fullSet)
+        flooded = full.intersection(set(initSet))
+        if relevant is None:
+            relevant = full.copy()
+    if relevant:
         relevant = set(relevant)
 
     change = flooded.copy()
     while len(change)>0:
         new = set()
         for m in change:
-            new.update(full.intersection(stepFunction(m)))
+            if fullSet is None:
+                new.update(stepFunction(m))
+            else:
+                new.update(full.intersection(stepFunction(m)))
         change = new.difference(flooded)
         flooded.update(change)
-        if relevant.issubset(flooded):
+        if relevant is not None and relevant.issubset(flooded):
             break
     return list(flooded)
 
@@ -684,6 +689,10 @@ def r_argmax(v):
     maxbidders = [i for (i, b) in enumerate(v) if b==maxbid]
     return choice(maxbidders)
 
+def all_argmax(x):
+    """ Return the indices of all values that are equal to the maximum: no breaking ties. """
+    m = max(x)
+    return [i for i, v in enumerate(x) if v == m]
 
 def dense_orth(dim):
     """ Constructs a dense orthogonal matrix. """
@@ -719,3 +728,62 @@ def sparse_orth(d):
             Qi[(i+1),(i+1)] = -cos(theta)            
         Q = Q*Qi;
     return Q
+
+def xhash(arr):
+    """ Hashing function for arrays. Use with care. """
+    import hashlib
+    return hashlib.sha1(arr).hexdigest()
+
+def binArr2int(arr):
+    """ Convert a binary array into its (long) integer representation. """
+    from numpy import packbits
+    tmp2 = packbits(arr.astype(int))
+    return sum(val * 256 ** i for i, val in enumerate(tmp2[::-1])) 
+        
+def uniqueArrays(vs):
+    """ create a set of arrays """
+    resdic = {}
+    for v in vs:
+        resdic[xhash(v)] = v
+    return resdic.values()    
+    
+
+def seedit(seed=0):
+    """ Fixed seed makes for repeatability, but there may be two different
+    random number generators involved. """
+    import random
+    import numpy
+    random.seed(seed)
+    numpy.random.seed(seed)
+
+
+    
+def weightedUtest(g1, w1, g2, w2):
+    """ Determines the confidence level of the assertion:
+    'The values of g2 are higher than those of g1'.  
+    (adapted from the scipy.stats version)
+    
+    Twist: here the elements of each group have associated weights, 
+    corresponding to how often they are present (i.e. two identical entries with 
+    weight w are equivalent to one entry with weight 2w).
+    Reference: "Studies in Continuous Black-box Optimization", Schaul, 2011 [appendix B].
+    
+    TODO: make more efficient for large sets. 
+    """
+    from scipy.stats.distributions import norm
+    import numpy
+    n1 = sum(w1)
+    n2 = sum(w2)
+    u1 = 0.
+    for x1, wx1 in zip(g1, w1):
+        for x2, wx2 in zip(g2, w2):
+            if x1 == x2:
+                u1 += 0.5 * wx1 * wx2
+            elif x1 > x2:
+                u1 += wx1 * wx2
+    mu = n1*n2/2.
+    sigu = numpy.sqrt(n1*n2*(n1+n2+1)/12.)
+    z = (u1 - mu) / sigu
+    conf = norm.cdf(z)
+    return conf 
+
